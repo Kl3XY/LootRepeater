@@ -18,7 +18,7 @@ public class MainWindow : Window, IDisposable
     // The user will see "My Amazing Window" as window title,
     // but for ImGui the ID is "My Amazing Window##With a hidden ID"
     public MainWindow(Plugin plugin, string goatImagePath)
-        : base("My Amazing Window##With a hidden ID", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
+        : base("Loot##With a hidden ID", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         SizeConstraints = new WindowSizeConstraints
         {
@@ -34,15 +34,14 @@ public class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
+        /*
         ImGui.Text($"The random config bool is {plugin.Configuration.SomePropertyToBeSavedAndWithADefault}");
 
         if (ImGui.Button("Show Settings"))
         {
             plugin.ToggleConfigUi();
         }
-
-        ImGui.Spacing();
-
+        */
         // Normally a BeginChild() would have to be followed by an unconditional EndChild(),
         // ImRaii takes care of this after the scope ends.
         // This works for all ImGui functions that require specific handling, examples are BeginTable() or Indent().
@@ -51,8 +50,17 @@ public class MainWindow : Window, IDisposable
             // Check if this child is drawing
             if (child.Success)
             {
-                ImGui.Text("IM DA GOAT MG!!!:");
-                ImGui.Button("Show Settings");
+                for (int i = 0; i < 30; i++)
+                {
+                    ImGui.Text($"Item {i}:");
+                    ImGui.SameLine();
+                    ImGui.Button("Need");
+                    ImGui.SameLine();
+                    ImGui.Button("Greed");
+                    ImGui.SameLine();
+                    ImGui.Button("Pass"); 
+                }
+                
 
                 ImGuiHelpers.ScaledDummy(20.0f);
 
@@ -60,6 +68,7 @@ public class MainWindow : Window, IDisposable
                 // PlayerState provides a wrapper filled with information about the player character.
 
                 var playerState = Plugin.PlayerState;
+                /*
                 if (!playerState.IsLoaded)
                 {
                     ImGui.Text("Our local player is currently not logged in.");
@@ -71,6 +80,10 @@ public class MainWindow : Window, IDisposable
                     ImGui.Text("Our current job is currently not valid.");
                     return;
                 }
+
+                var hasMentor = playerState.IsTradeMentor;
+                
+                ImGui.Text("IsMentor: " +  hasMentor);
                 
                 ImGui.AlignTextToFramePadding();
                 ImGui.Text($"Current job:");
@@ -105,6 +118,7 @@ public class MainWindow : Window, IDisposable
                 {
                     ImGui.Text("Invalid territory.");
                 }
+                */
             }
         }
     }
