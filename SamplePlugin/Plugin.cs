@@ -4,6 +4,7 @@ using Dalamud.Plugin;
 using System.IO;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Sound;
 using SamplePlugin.Windows;
 
 namespace SamplePlugin;

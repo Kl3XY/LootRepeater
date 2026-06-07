@@ -13,4 +13,8 @@
       <Visible>false</Visible>
     </Content>
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Classes\" />
+  </ItemGroup>
 </Project>
