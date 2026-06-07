@@ -1,24 +1,28 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
+using Dalamud.Plugin.Services;
+using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Lumina.Excel.Sheets;
 
 namespace SamplePlugin.Windows;
 
-public class MainWindow : Window, IDisposable
+public unsafe class MainWindow : Window, IDisposable
 {
-    private readonly string goatImagePath;
+    private unsafe delegate bool RollItemRaw(Loot* lootIntPtr, RollResult option, uint lootItemIndex);
+    private static RollItemRaw _rollItemRaw;
     private readonly Plugin plugin;
-
-    // We give this window a hidden ID using ##.
-    // The user will see "My Amazing Window" as window title,
-    // but for ImGui the ID is "My Amazing Window##With a hidden ID"
+    private int t;
+    private List<LootItem> items = new();
+    
     public MainWindow(Plugin plugin, string goatImagePath)
         : base("Loot", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
@@ -27,26 +31,70 @@ public class MainWindow : Window, IDisposable
             MinimumSize = new Vector2(375, 330),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
-
-        this.goatImagePath = goatImagePath;
+        
+        
         this.plugin = plugin;
     }
+    
+    public void Dispose() {
 
-    public void Dispose() { }
+    }
 
-    public unsafe override void Draw()
+    public void loadLootTable()
     {
-        /*
-        ImGui.Text($"The random config bool is {plugin.Configuration.SomePropertyToBeSavedAndWithADefault}");
-
-        if (ImGui.Button("Show Settings"))
+        items.Clear();
+        var span = Loot.Instance()->Items;
+        for (var i = 0; i < span.Length; i++)
         {
-            plugin.ToggleConfigUi();
+            var loot = span[(int)i];
+                   
+            /*
+             * Original Snippet from https://github.com/PunishXIV/LazyLoot/blob/master/LazyLoot/Roller.cs#L415
+             *
+             * Gets items that are currently in the loot table.
+             */
+            
+            if (loot.ItemId >= 1000000) loot.ItemId -= 1000000;
+            if (loot.ChestObjectId is 0 or 0xE0000000) continue;
+            if (loot.ItemId == 0) continue;
+
+            items.Add(loot);
         }
-        */
-        // Normally a BeginChild() would have to be followed by an unconditional EndChild(),
-        // ImRaii takes care of this after the scope ends.
-        // This works for all ImGui functions that require specific handling, examples are BeginTable() or Indent().
+    }
+    
+    public unsafe override void OnOpen()
+    {
+        loadLootTable();
+    }
+
+    private unsafe void RollItem(RollResult option, uint index)
+    {
+        try
+        {
+            _rollItemRaw ??=
+                Marshal.GetDelegateForFunctionPointer<RollItemRaw>(
+                    Plugin.SigScanner.ScanText("41 83 F8 ?? 0F 83 ?? ?? ?? ?? 48 89 5C 24 08"));
+            _rollItemRaw?.Invoke(Loot.Instance(), option, index);
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Warning(ex, "Warning at roll");
+        }
+        
+        
+    }
+    
+    public override void OnClose()
+    {
+        base.OnClose();
+        items.Clear();
+        
+    }
+
+    
+    
+    public override void Draw()
+    {
         using (var child = ImRaii.Child("SomeChildWithAScrollbar", Vector2.Zero, true))
         {
             // Check if this child is drawing
@@ -54,52 +102,47 @@ public class MainWindow : Window, IDisposable
             {
                 try
                 {
-                    /*
-                     * Original Snippet from https://github.com/PunishXIV/LazyLoot/blob/master/LazyLoot/Roller.cs#L415
-                     */
-                    
-                    List<Item> items = [];
-                    var span = Loot.Instance()->Items;
-                    for (var i = 0; i < span.Length; i++)
+                    for (uint i = 0; i < items.Count; i++)
                     {
-                        var loot = span[(int)i];
-                        
-                        if (loot.ItemId >= 1000000) loot.ItemId -= 1000000;
-                        if (loot.ChestObjectId is 0 or 0xE0000000) continue;
-                        if (loot.RollResult != RollResult.UnAwarded) continue;
-                        if (loot.RollState is RollState.Rolled or RollState.Unavailable or RollState.Unknown) continue;
-                        if (loot.ItemId == 0) continue;
-                        if (loot.LootMode is LootMode.LootMasterGreedOnly or LootMode.Unavailable) continue;
-                        
-                        var DBItem = Plugin.DataManager.GetExcelSheet<Item>().GetRowOrDefault(loot.ItemId);
-                        if (DBItem != null) items.Add(DBItem.Value);
-                    }
-
-                    for (int i = 0; i < items.Count; i++)
-                    {
-                        var item = items[i];
+                        var loot = items[Convert.ToInt32(i)];
+                        var item = Plugin.DataManager.GetExcelSheet<Item>().GetRowOrDefault(loot.ItemId).Value;
                         var gameIcon = Plugin.TextureProvider.GetFromGameIcon(new GameIconLookup(item.Icon)).GetWrapOrEmpty();
-                        ImGui.Image(gameIcon.Handle, new Vector2(28, 28) * ImGuiHelpers.GlobalScale);
+                        if (loot.RollState != RollState.Rolled) {
+                            if (ImGui.Button($"Need##{i}"))
+                            {
+                                loot.RollState = RollState.UpToNeed;
+                                RollItem(RollResult.Needed, i);
+                            };
+                            ImGui.SameLine();
+                            if (ImGui.Button($"Greed##{i}"))
+                            {
+                                loot.RollState = RollState.UpToGreed;
+                                RollItem(RollResult.Greeded, i);
+                            };
+                            ImGui.SameLine();
+                            if (ImGui.Button($"Pass##{i}"))
+                            {
+                                loot.RollState = RollState.UpToPass;
+                                loot.RollValue = 0;
+                                RollItem(RollResult.Passed, i);
+                            };
+                        }
                         ImGui.SameLine();
-                        ImGui.Text($"{i}. " + item.Name.ToString() + ": ");
+                        ImGui.Image(gameIcon.Handle, new Vector2(16, 16) * ImGuiHelpers.GlobalScale);
                         ImGui.SameLine();
-                        ImGui.Button("Need");
-                        ImGui.SameLine();
-                        ImGui.Button("Greed");
-                        ImGui.SameLine();
-                        ImGui.Button("Pass");
+                        ImGui.Text($"{i}. " + item.Name.ToString());
+                        if (loot.RollState == RollState.Rolled)
+                        {
+                            ImGui.SameLine();
+                            ImGui.Text($"({loot.RollValue})");
+                        }
+                        ImGui.NewLine();
                     }
                 }
                 catch (Exception e)
                 {
                     Console.WriteLine(e);
                 }
-                
-                
-                
-                
-                var playerState = Plugin.PlayerState;
-                
             }
         }
     }
