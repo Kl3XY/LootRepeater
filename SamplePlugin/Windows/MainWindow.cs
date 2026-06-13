@@ -12,6 +12,7 @@ using Dalamud.Plugin.Services;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Lumina.Excel.Sheets;
+using Achievement = Lumina.Excel.Sheets.Achievement;
 
 namespace SamplePlugin.Windows;
 
@@ -115,46 +116,69 @@ public unsafe class MainWindow : Window, IDisposable
             {
                 try
                 {
+                    ImGui.BeginTable("Item", 2);
+
+                    ImGui.TableNextColumn();
+                    ImGui.TableSetupColumn("Rolling / Value", default, 128);
+                    
+                    ImGui.TableNextColumn();
+                    ImGui.TableSetupColumn("Item");
+
+                    ImGui.TableHeadersRow();
+                    ImGui.TableNextColumn();
+
                     var hasRolledAllItems = true;
                     for (uint i = 0; i < items.Count; i++)
                     {
                         var loot = items[Convert.ToInt32(i)];
                         var item = Plugin.DataManager.GetExcelSheet<Item>().GetRowOrDefault(loot.ItemId).Value;
                         var gameIcon = Plugin.TextureProvider.GetFromGameIcon(new GameIconLookup(item.Icon)).GetWrapOrEmpty();
+                        
+                        /*
+                         * Create the Actions row.
+                         * Either display the buttons or just display the roll value
+                         */
+
                         if (loot.RollState != RollState.Rolled)
                         {
                             hasRolledAllItems = false;
-                            if (ImGui.Button($"Need##{i}"))
+                            if (ImGui.Button($"Need##{i}") && loot.LootMode == LootMode.Normal)
                             {
-                                loot.RollState = RollState.UpToNeed;
+                                loot.RollState = RollState.Rolled;
                                 RollItem(RollResult.Needed, i);
                             };
                             ImGui.SameLine();
                             if (ImGui.Button($"Greed##{i}"))
                             {
-                                loot.RollState = RollState.UpToGreed;
+                                loot.RollState = RollState.Rolled;
                                 RollItem(RollResult.Greeded, i);
                             };
                             ImGui.SameLine();
                             if (ImGui.Button($"Pass##{i}"))
                             {
-                                loot.RollState = RollState.UpToPass;
+                                loot.RollState = RollState.Rolled;
                                 loot.RollValue = 0;
                                 RollItem(RollResult.Passed, i);
                             };
                         }
-                        ImGui.SameLine();
+                        else
+                        {
+                            String value = loot.RollValue == 0 ? "PASSED" : loot.RollValue.ToString();
+                            ImGui.Text($"({value})");
+                        }
+                        
+                        /*
+                         * Display the item in the next row
+                         */
+                        
+                        ImGui.TableNextColumn();
+                        
                         ImGui.Image(gameIcon.Handle, new Vector2(16, 16) * ImGuiHelpers.GlobalScale);
                         ImGui.SameLine();
                         ImGui.Text($"{i}. " + item.Name.ToString());
-                        if (loot.RollState == RollState.Rolled)
-                        {
-                            ImGui.SameLine();
-                            ImGui.Text($"({loot.RollValue})");
-                        }
-                        ImGui.NewLine();
+                        ImGui.TableNextColumn();
                     }
-
+                    ImGui.EndTable();
                     if (hasRolledAllItems)
                     {
                         Toggle();
