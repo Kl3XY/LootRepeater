@@ -93,8 +93,7 @@ public sealed class Plugin : IDalamudPlugin
     private unsafe void OnFrameworkTick(IFramework framework)
     {
         loadLootTable();
-        Log.Info("OnFrameworkTick: {0}", lastItemSize);
-        if (lastItemSize != items.Count)
+        if (lastItemSize != items.Count && !MainWindow.IsOpen)
         {
             lastItemSize = items.Count;
             if (lastItemSize != 0) ToggleMainUi();

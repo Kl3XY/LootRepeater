@@ -21,6 +21,7 @@ public unsafe class MainWindow : Window, IDisposable
     private static RollItemRaw _rollItemRaw;
     private readonly Plugin plugin;
     private int t;
+    private int tickReset = 30;
     private List<LootItem> items = new();
     
     public MainWindow(Plugin plugin, string goatImagePath)
@@ -31,7 +32,8 @@ public unsafe class MainWindow : Window, IDisposable
             MinimumSize = new Vector2(375, 330),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
-        
+
+        Plugin.Framework.Update += onFWTick;
         
         this.plugin = plugin;
     }
@@ -40,6 +42,17 @@ public unsafe class MainWindow : Window, IDisposable
 
     }
 
+    public void onFWTick(IFramework framework)
+    {
+        tickReset--;
+        if (tickReset <= 0)
+        {
+            loadLootTable();
+            tickReset = 30;
+        }
+        
+    }
+    
     public void loadLootTable()
     {
         items.Clear();
@@ -102,12 +115,15 @@ public unsafe class MainWindow : Window, IDisposable
             {
                 try
                 {
+                    var hasRolledAllItems = true;
                     for (uint i = 0; i < items.Count; i++)
                     {
                         var loot = items[Convert.ToInt32(i)];
                         var item = Plugin.DataManager.GetExcelSheet<Item>().GetRowOrDefault(loot.ItemId).Value;
                         var gameIcon = Plugin.TextureProvider.GetFromGameIcon(new GameIconLookup(item.Icon)).GetWrapOrEmpty();
-                        if (loot.RollState != RollState.Rolled) {
+                        if (loot.RollState != RollState.Rolled)
+                        {
+                            hasRolledAllItems = false;
                             if (ImGui.Button($"Need##{i}"))
                             {
                                 loot.RollState = RollState.UpToNeed;
@@ -137,6 +153,11 @@ public unsafe class MainWindow : Window, IDisposable
                             ImGui.Text($"({loot.RollValue})");
                         }
                         ImGui.NewLine();
+                    }
+
+                    if (hasRolledAllItems)
+                    {
+                        Toggle();
                     }
                 }
                 catch (Exception e)
